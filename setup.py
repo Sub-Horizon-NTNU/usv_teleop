@@ -24,7 +24,9 @@ setup(
     entry_points={
         'console_scripts': [
             'joystick_teleop = usv_teleop.joystick_teleop:main',
-            'light_state_sender = usv_teleop.light_state_sender:main',
+            'light_state_sender = usv_teleop.light_state_sender:main',   # combined (single-machine)
+            'light_state_publisher = usv_teleop.light_state_publisher:main',  # controller/PC side
+            'light_relay_driver = usv_teleop.light_relay_driver:main',        # boat side
         ],
     },
 )
