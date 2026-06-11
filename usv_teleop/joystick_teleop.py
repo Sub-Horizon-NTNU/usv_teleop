@@ -32,6 +32,7 @@ class JoystickTeleop(Node):
         self.declare_parameter('yaw_axis', 3)          # right stick horizontal -> yaw rate
         self.declare_parameter('deadman_button', 4)    # LB: hold to take manual control
         self.declare_parameter('estop_button', 1)      # B: e-stop / disarm
+        self.declare_parameter('arm_button', 7)        # Start: press to toggle arm/disarm
 
         # Output scaling.
         self.declare_parameter('max_surge', 2.0)       # m/s
@@ -44,6 +45,7 @@ class JoystickTeleop(Node):
         self.yaw_axis = self.get_parameter('yaw_axis').value
         self.deadman_button = self.get_parameter('deadman_button').value
         self.estop_button = self.get_parameter('estop_button').value
+        self.arm_button = self.get_parameter('arm_button').value
         self.max_surge = self.get_parameter('max_surge').value
         self.max_sway = self.get_parameter('max_sway').value
         self.max_yaw_rate = self.get_parameter('max_yaw_rate').value
@@ -52,9 +54,13 @@ class JoystickTeleop(Node):
         self.override_pub = self.create_publisher(Bool, 'selene/manual/override', 10)
         self.cmd_pub = self.create_publisher(Twist, 'selene/manual/cmd', 10)
         self.estop_pub = self.create_publisher(Bool, 'selene/manual/estop', 10)
+        self.arm_pub = self.create_publisher(Bool, 'selene/arm', 10)
+
+        self.armed = False          # latched arm state, toggled by arm_button
+        self._prev_arm_btn = False
 
         self.create_subscription(Joy, 'joy', self.joy_cb, 10)
-        self.get_logger().info('Joystick teleop started (hold deadman to take manual control)')
+        self.get_logger().info('Joystick teleop started (Start=arm/disarm, hold LB=manual)')
 
     def _axis(self, axes, idx):
         if idx < 0 or idx >= len(axes):
@@ -69,8 +75,18 @@ class JoystickTeleop(Node):
         override = self._button(msg.buttons, self.deadman_button)
         estop = self._button(msg.buttons, self.estop_button)
 
+        # Arm: toggle on the rising edge of the arm button. E-stop forces disarm.
+        arm_btn = self._button(msg.buttons, self.arm_button)
+        if arm_btn and not self._prev_arm_btn:
+            self.armed = not self.armed
+            self.get_logger().info(f"{'ARM' if self.armed else 'DISARM'} requested")
+        self._prev_arm_btn = arm_btn
+        if estop:
+            self.armed = False
+
         self.override_pub.publish(Bool(data=override))
         self.estop_pub.publish(Bool(data=estop))
+        self.arm_pub.publish(Bool(data=self.armed))
 
         cmd = Twist()
         if override:
