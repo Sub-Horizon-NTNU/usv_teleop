@@ -24,6 +24,7 @@ setup(
     entry_points={
         'console_scripts': [
             'joystick_teleop = usv_teleop.joystick_teleop:main',
+            'light_state_sender = usv_teleop.light_state_sender:main',
         ],
     },
 )
