@@ -39,11 +39,20 @@ class LightStateSender(Node):
                                  lambda m: setattr(self, "manual", m.data), 10)
         self.create_subscription(Bool, "selene/manual/estop",
                                  lambda m: setattr(self, "estop", m.data), 10)
-        self.create_timer(0.05, self._tick)   # 20 Hz
+        self._last_b = -1
+        self._status_seen = False
+        self.create_timer(0.05, self._tick)    # 20 Hz send
+        self.create_timer(2.0, self._heartbeat)
         self.get_logger().info(f"light_state_sender -> {self.pi_ip}:{self.port}")
 
     def _on_status(self, msg):
         self.armed = (msg.arming_state == ARMED)
+        self._status_seen = True
+
+    def _heartbeat(self):
+        if not self._status_seen:
+            self.get_logger().warn("no /fmu/out/vehicle_status yet -> armed stays False (red). "
+                                   "agent up? topic bridged? QoS best_effort?")
 
     def _tick(self):
         active = self.armed and not self.estop
@@ -52,6 +61,11 @@ class LightStateSender(Node):
         amber = active and self.manual
         green = active and not self.manual
         b = (int(relay) << 0) | (int(red) << 1) | (int(amber) << 2) | (int(green) << 3)
+        if b != self._last_b:
+            self.get_logger().info(
+                f"armed={self.armed} manual={self.manual} estop={self.estop} "
+                f"-> relay={relay} red={red} amber={amber} green={green} (byte={b:04b})")
+            self._last_b = b
         self.sock.sendto(MAGIC + bytes([b]), (self.pi_ip, self.port))
 
 
